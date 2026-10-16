@@ -1,0 +1,152 @@
+@import 'tailwindcss';
+
+/* -----------------------------------------------------------------------
+   Kinova / Tokens — 1:1 with the Figma variables (figma-plugin/code.js)
+   ----------------------------------------------------------------------- */
+@theme {
+  /* Brand greens */
+  --color-forest-900: #1f3a2e;
+  --color-forest-700: #2f5a45;
+  --color-forest-500: #4a7a5e;
+  --color-moss-700: #4f6942;
+  --color-moss-500: #6e8b5e;
+  --color-sage-200: #dce5d3;
+  --color-sage-100: #eef2e8;
+
+  /* Neutrals */
+  --color-ivory-50: #faf7f0;
+  --color-ivory-100: #f3eee2;
+  --color-sand-300: #d9c9a8;
+  --color-charcoal-900: #1e2321;
+  --color-charcoal-700: #353c38;
+  --color-charcoal-600: #4a524e;
+  --color-stone-500: #6b716c;
+  --color-stone-400: #8c928e;
+  --color-stone-200: #cdd0cb;
+  --color-line: #e4ded1;
+  --color-line-strong: #cfc7b5;
+  --color-card: #ffffff;
+
+  /* Earthy accents */
+  --color-clay-700: #8a5333;
+  --color-clay-500: #b4734a;
+  --color-clay-100: #f6e9de;
+  --color-amber-500: #c08a2e;
+
+  /* Semantic */
+  --color-success: #3e7a52;
+  --color-success-bg: #e6f0e8;
+  --color-caution: #8a6418;
+  --color-caution-bg: #f7eed9;
+  --color-risk: #a9473a;
+  --color-risk-strong: #8e3a2f;
+  --color-risk-bg: #f6e3df;
+  --color-info: #3f6a82;
+  --color-info-bg: #e3edf2;
+
+  /* Fonts (loaded with next/font in app/layout.js) */
+  --font-serif: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  /* Radius: tags 6 · inputs & buttons 10 · small cards 12 · cards & panels 16 */
+  --radius-tag: 6px;
+  --radius-icon: 8px;
+  --radius-control: 10px;
+  --radius-tile: 12px;
+  --radius-card: 16px;
+  --radius-sheet: 20px;
+
+  /* Elevation (Figma effect styles) */
+  --shadow-sm: 0 1px 2px rgb(30 35 33 / 0.05), 0 1px 3px rgb(30 35 33 / 0.04);
+  --shadow-md: 0 4px 12px rgb(30 35 33 / 0.08), 0 1px 3px rgb(30 35 33 / 0.04);
+  --shadow-lg: 0 16px 40px rgb(30 35 33 / 0.14), 0 2px 6px rgb(30 35 33 / 0.06);
+  --shadow-focus: 0 0 0 3px #dce5d3;
+
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-sheet-up: sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-sheet-left: sheet-left 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes sheet-up {
+    from { transform: translateY(24px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes sheet-left {
+    from { transform: translateX(32px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Text styles — 1:1 with the Figma text styles
+   ----------------------------------------------------------------------- */
+@utility text-hero { font-family: var(--font-serif); font-weight: 600; font-size: 88px; line-height: 96px; letter-spacing: -1.5px; }
+@utility text-display { font-family: var(--font-serif); font-weight: 600; font-size: 40px; line-height: 48px; letter-spacing: -0.6px; }
+@utility text-h1 { font-family: var(--font-serif); font-weight: 600; font-size: 28px; line-height: 36px; letter-spacing: -0.3px; }
+@utility text-title { font-family: var(--font-serif); font-weight: 600; font-size: 20px; line-height: 28px; letter-spacing: -0.1px; }
+@utility text-h2 { font-family: var(--font-sans); font-weight: 600; font-size: 20px; line-height: 28px; letter-spacing: -0.2px; }
+@utility text-h3 { font-family: var(--font-sans); font-weight: 600; font-size: 16px; line-height: 24px; letter-spacing: -0.1px; }
+@utility text-body-lg { font-family: var(--font-sans); font-weight: 400; font-size: 16px; line-height: 26px; letter-spacing: 0; }
+@utility text-body { font-family: var(--font-sans); font-weight: 400; font-size: 15px; line-height: 24px; letter-spacing: 0; }
+@utility text-body-md { font-family: var(--font-sans); font-weight: 500; font-size: 15px; line-height: 24px; letter-spacing: 0; }
+@utility text-body-sm { font-family: var(--font-sans); font-weight: 400; font-size: 13px; line-height: 20px; letter-spacing: 0; }
+@utility text-body-sm-md { font-family: var(--font-sans); font-weight: 500; font-size: 13px; line-height: 20px; letter-spacing: 0; }
+@utility text-label { font-family: var(--font-sans); font-weight: 500; font-size: 12px; line-height: 16px; letter-spacing: 0.1px; }
+@utility text-eyebrow { font-family: var(--font-sans); font-weight: 600; font-size: 12px; line-height: 16px; letter-spacing: 0.8px; text-transform: uppercase; }
+@utility text-mono { font-family: var(--font-mono); font-weight: 400; font-size: 13px; line-height: 20px; }
+@utility text-mono-sm { font-family: var(--font-mono); font-weight: 500; font-size: 12px; line-height: 16px; }
+@utility text-score-lg { font-family: var(--font-serif); font-weight: 600; font-size: 36px; line-height: 40px; }
+@utility text-score-sm { font-family: var(--font-serif); font-weight: 600; font-size: 17px; line-height: 20px; }
+@utility text-brand { font-family: var(--font-serif); font-weight: 600; font-size: 20px; line-height: 24px; letter-spacing: -0.2px; }
+@utility text-logo { font-family: var(--font-serif); font-weight: 600; font-size: 18px; line-height: 20px; }
+
+/* Keyboard focus: forest outline + sage ring (Figma Focus/ring) */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 1.5px solid var(--color-forest-700);
+    outline-offset: 1px;
+    box-shadow: var(--shadow-focus);
+  }
+}
+
+/* Inside stroke like Figma's 2px "selected" border, without layout shift */
+@utility stroke-selected {
+  border-color: var(--color-forest-700);
+  box-shadow: inset 0 0 0 1px var(--color-forest-700), var(--shadow-md);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background-color: var(--color-ivory-50);
+    color: var(--color-charcoal-900);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 24px;
+  }
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: var(--color-sage-200);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
