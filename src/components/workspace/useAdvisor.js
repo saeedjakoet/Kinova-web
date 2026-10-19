@@ -2,19 +2,16 @@
 
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { askAdvisor, findPairings, getCollection } from '@/lib/api';
+import { askAdvisor, findPairings, getCollection, getFemale } from '@/lib/api';
 import { femaleProfile } from '@/lib/cltch';
 import { DEFAULT_GOALS, goalsFor } from '@/lib/goals';
 
 // One reducer drives every screen in the Figma flow:
 // D01 empty · D02 selector · D03 goals · D04 loading · D05 results · D06 detail · D07 compare · D08 refine · D09 error/blocked
 const initial = {
-  females: [],
+  female: null, // the selected female (females themselves load page by page in the selector)
   males: [],
   syncedAt: null,
-  loadError: null,
-  femalesLoading: true,
-  loadAttempt: 0,
   femaleId: null,
   goals: DEFAULT_GOALS,
   goalsTouched: false,
@@ -43,17 +40,13 @@ const initial = {
 function reducer(s, a) {
   switch (a.type) {
     case 'loaded':
-      return { ...s, females: a.females, males: a.males, syncedAt: a.syncedAt, femalesLoading: false, loadError: null };
-    case 'loadError':
-      return { ...s, loadError: a.message, femalesLoading: false };
-    case 'reload':
-      return { ...s, loadError: null, femalesLoading: true, loadAttempt: s.loadAttempt + 1 };
+      return { ...s, males: a.males, syncedAt: a.syncedAt };
     case 'openSelector':
       return { ...s, selectorOpen: a.open };
     case 'selectFemale':
       return {
-        ...initial, females: s.females, males: s.males, syncedAt: s.syncedAt, femalesLoading: false,
-        femaleId: a.id, goals: goalsFor(a.id, s.females.find((f) => f.id === a.id)), mobileScreen: 'goals',
+        ...initial, males: s.males, syncedAt: s.syncedAt,
+        female: a.female, femaleId: a.female.id, goals: goalsFor(a.female.id, a.female), mobileScreen: 'goals',
       };
     case 'mobileScreen':
       return { ...s, mobileScreen: a.screen, view: a.screen === 'results' ? s.view : 'list' };
@@ -146,7 +139,7 @@ function reducer(s, a) {
     case 'plan':
       return { ...s, planned: { ...s.planned, [a.id]: !s.planned[a.id] } };
     case 'reset':
-      return { ...initial, females: s.females, males: s.males, syncedAt: s.syncedAt, femalesLoading: false };
+      return { ...initial, males: s.males, syncedAt: s.syncedAt };
     default:
       return s;
   }
@@ -161,16 +154,14 @@ export default function useAdvisor() {
   const pendingView = useRef(null);
   const timer = useRef(null);
 
-  // Load the collection: females from FastAPI (/api/cltch/females), sample males from the mock route
+  // Sample males from the mock route. Females are paged from FastAPI by the selector (useFemalePages).
   useEffect(() => {
     let alive = true;
-    getCollection()
-      .then((d) => { if (alive) dispatch({ type: 'loaded', females: d.females, males: d.males, syncedAt: d.syncedAt }); })
-      .catch((e) => { if (alive && e.status !== 401) dispatch({ type: 'loadError', message: e.message }); });
+    getCollection().then((d) => { if (alive) dispatch({ type: 'loaded', males: d.males, syncedAt: d.syncedAt }); });
     return () => { alive = false; };
-  }, [s.loadAttempt]);
+  }, []);
 
-  const female = s.females.find((f) => f.id === s.femaleId) || null;
+  const female = s.female;
   const results = s.results;
   const recs = results ? results.recommendations : [];
   const selected = recs.find((r) => r.male.id === s.selectedMaleId) || recs[0] || null;
@@ -205,17 +196,24 @@ export default function useAdvisor() {
   useEffect(() => () => clearInterval(timer.current), []);
 
   // Deep links: /advisor?female=juniper&view=detail&male=atlas  (also ?female=ember → blocked state)
+  // The female is fetched by id because she may not be on the first page of the selector.
   const deepLinked = useRef(false);
   useEffect(() => {
-    if (deepLinked.current || s.femalesLoading) return;
-    deepLinked.current = true;
+    if (deepLinked.current) return undefined;
     const fid = params.get('female');
-    const f = s.females.find((x) => x.id === fid);
-    if (!f) return;
-    dispatch({ type: 'selectFemale', id: f.id });
-    const view = params.get('view');
-    if (f.ready && view) pendingView.current = { view, male: params.get('male') };
-  }, [s.females, s.femalesLoading, params]);
+    if (!fid) { deepLinked.current = true; return undefined; }
+    let alive = true;
+    getFemale(fid)
+      .then((f) => {
+        if (!alive) return;
+        deepLinked.current = true;
+        const view = params.get('view');
+        if (f.ready && view) pendingView.current = { view, male: params.get('male') };
+        dispatch({ type: 'selectFemale', female: f });
+      })
+      .catch(() => { if (alive) deepLinked.current = true; }); // unknown id or Cltch down: start without a selection
+    return () => { alive = false; };
+  }, [params]);
 
   // Auto-run after a deep link selected a ready female with a view
   useEffect(() => {
@@ -250,8 +248,7 @@ export default function useAdvisor() {
 
   const actions = {
     openSelector: (open = true) => dispatch({ type: 'openSelector', open }),
-    reloadFemales: () => dispatch({ type: 'reload' }),
-    selectFemale: (id) => dispatch({ type: 'selectFemale', id }),
+    selectFemale: (female) => dispatch({ type: 'selectFemale', female }),
     setGoals: (goals) => dispatch({ type: 'setGoals', goals }),
     run,
     retry: () => run(),

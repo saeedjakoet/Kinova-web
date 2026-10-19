@@ -39,8 +39,8 @@ function yearsLabel(months) {
  * @param {{femaleMinBreedingWeightGrams?: number, femaleMinBreedingAgeMonths?: number}} [policy]
  */
 export function adaptFemale(row, policy = {}) {
-  const minW = policy.femaleMinBreedingWeightGrams || 1500;
-  const minAge = policy.femaleMinBreedingAgeMonths || 36;
+  const minW = policy.femaleMinBreedingWeightGrams || 500;
+  const minAge = policy.femaleMinBreedingAgeMonths || 12;
   const reasons = Array.isArray(row.readinessReasons) ? row.readinessReasons : [];
   const codes = new Set(reasons.map((r) => r.code));
   const morphNames = (row.morphNames || []).filter((n) => typeof n === 'string' && n.trim());

@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo } from 'react';
+import clsx from 'clsx';
 import useBreakpoint from '@/lib/useBreakpoint';
 import useAdvisor from './useAdvisor';
 import { Header, SubHeader, MobileStepper } from '../layout/Chrome';
 import GoalsForm from '../layout/GoalsForm';
-import FemaleSelectorModal, { useFemaleFilter, FilterChips, CollectionStatus, PaginationControls } from '../snake/FemaleSelectorModal';
+import FemaleSelectorModal, { useFemalePages, FilterChips, CollectionStatus, PaginationControls } from '../snake/FemaleSelectorModal';
 import { SnakeCard, FemaleSummary } from '../snake/SnakeCards';
 import SnakeAvatar from '../snake/SnakeAvatar';
 import Button, { IconButton } from '../ui/Button';
@@ -146,30 +147,30 @@ function TabletLayout({ ctx }) {
 // ---------------------------------------------------------------------------
 function MobileFemaleList({ ctx }) {
   const { s, actions } = ctx;
-  const { q, setQ, filter, setFilter, counts, shown, pagedShown, page, setPage, totalPages, pageSize } = useFemaleFilter(s.females);
-  const ready = !s.femalesLoading && !s.loadError && s.females.length > 0;
+  const p = useFemalePages();
+  const ready = !p.loading && !p.error && p.totalInCollection > 0;
   return (
     <>
       <MobileStepper step={1} title="Choose a female" />
       {ready && (
         <>
-          <SearchInput value={q} onChange={setQ} label="Search females" />
-          <FilterChips filter={filter} setFilter={setFilter} counts={counts} labels={['All', 'Ready', 'Not ready']} />
+          <SearchInput value={p.q} onChange={p.setQ} label="Search females" />
+          <FilterChips filter={p.filter} setFilter={p.setFilter} counts={p.counts} labels={['All', 'Ready', 'Not ready']} />
         </>
       )}
-      {ready && shown.length > 0 ? (
+      {ready && p.total > 0 ? (
         <>
-          <ul className="flex flex-col gap-2.5">
-            {pagedShown.map((f) => (
+          <ul className={clsx('flex flex-col gap-2.5 transition-opacity', p.fetching && 'opacity-60')} aria-busy={p.fetching}>
+            {p.females.map((f) => (
               <li key={f.id}>
-                <SnakeCard snake={f} layout="compact" selected={f.id === s.femaleId} onSelect={() => actions.selectFemale(f.id)} />
+                <SnakeCard snake={f} layout="compact" selected={f.id === s.femaleId} onSelect={() => actions.selectFemale(f)} />
               </li>
             ))}
           </ul>
-          <PaginationControls page={page} totalPages={totalPages} total={shown.length} pageSize={pageSize} onPageChange={setPage} />
+          <PaginationControls page={p.page} totalPages={p.totalPages} total={p.total} pageSize={p.pageSize} onPageChange={p.setPage} />
         </>
       ) : (
-        <CollectionStatus layout="compact" loading={s.femalesLoading} error={s.loadError} onRetry={actions.reloadFemales} total={s.females.length} query={q} />
+        <CollectionStatus layout="compact" loading={p.loading} error={p.error} onRetry={p.retry} total={p.totalInCollection} query={p.q} />
       )}
     </>
   );
@@ -277,12 +278,8 @@ export default function AdvisorWorkspace() {
         <FemaleSelectorModal
           open={s.selectorOpen}
           onClose={() => actions.openSelector(false)}
-          females={s.females}
           selectedId={s.femaleId}
-          loading={s.femalesLoading}
-          error={s.loadError}
-          onRetry={actions.reloadFemales}
-          onSelect={(id) => actions.selectFemale(id)}
+          onSelect={(f) => actions.selectFemale(f)}
         />
       )}
     </>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Dialog } from '../ui/Overlay';
 import Button, { IconButton } from '../ui/Button';
@@ -9,37 +9,80 @@ import Icon from '../ui/Icon';
 import { SearchInput } from '../ui/Fields';
 import { Callout, Skeleton } from '../ui/Misc';
 import { SnakeCard } from './SnakeCards';
+import { FEMALES_PAGE_SIZE, getFemalesPage, prefetchFemalesPage } from '@/lib/api';
 
 const FILTERS = ['All females', 'Ready to breed', 'Not ready'];
-const PAGE_SIZE = 6;
+const READY_PARAM = ['all', 'ready', 'not_ready'];
+const SEARCH_DEBOUNCE_MS = 300;
 
-export function useFemaleFilter(females) {
-  const [q, setQ] = useState('');
-  const [filter, setFilter] = useState(0);
+/**
+ * Server-paged females: each page comes from GET /api/cltch/females (6 per page), search and
+ * the ready filter run on the API, and the next page is prefetched so "Next" is instant.
+ */
+export function useFemalePages() {
+  const [q, setQState] = useState('');
+  const [query, setQuery] = useState('');
+  const [filter, setFilterState] = useState(0);
   const [page, setPage] = useState(1);
-  const counts = [females.length, females.filter((f) => f.ready).length, females.filter((f) => !f.ready).length];
-  const shown = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return females.filter((f) => {
-      if (filter === 1 && !f.ready) return false;
-      if (filter === 2 && f.ready) return false;
-      if (!s) return true;
-      return [f.name, f.cltchId, String(f.id), f.morph, f.line, ...(f.morphNames || [])]
-        .some((v) => String(v || '').toLowerCase().includes(s));
-    });
-  }, [females, q, filter]);
-  const totalPages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
-  const pageClamped = Math.min(page, totalPages);
-  const pageStart = (pageClamped - 1) * PAGE_SIZE;
-  const pagedShown = useMemo(() => shown.slice(pageStart, pageStart + PAGE_SIZE), [shown, pageStart]);
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [fetching, setFetching] = useState(true);
+  const refreshNext = useRef(false);
 
-  useEffect(() => setPage(1), [q, filter]);
+  // Debounce typing; the page resets with the query so we never fetch "page 3" of a new search.
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+    const next = q.trim();
+    if (next === query) return undefined;
+    const t = setTimeout(() => { setQuery(next); setPage(1); }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [q, query]);
 
+  const setFilter = useCallback((i) => { setFilterState(i); setPage(1); }, []);
+  const retry = useCallback(() => { refreshNext.current = true; setAttempt((a) => a + 1); }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const args = { page, pageSize: FEMALES_PAGE_SIZE, q: query, ready: READY_PARAM[filter] };
+    const refresh = refreshNext.current;
+    refreshNext.current = false;
+    setFetching(true);
+    getFemalesPage({ ...args, refresh })
+      .then((r) => {
+        if (!alive) return;
+        // The collection can shrink between visits (cache refresh); fall back to the last page.
+        if (r.total > 0 && page > r.totalPages) { setPage(r.totalPages); return; }
+        setResult(r);
+        setError(null);
+        setFetching(false);
+        if (r.hasNext) prefetchFemalesPage({ ...args, page: page + 1 });
+      })
+      .catch((e) => {
+        if (!alive || e.status === 401) return;
+        setError(e.message);
+        setFetching(false);
+      });
+    return () => { alive = false; };
+  }, [page, query, filter, attempt]);
+
+  const counts = result ? [result.counts.all, result.counts.ready, result.counts.notReady] : [0, 0, 0];
   return {
-    q, setQ, filter, setFilter, counts, shown, page: pageClamped, setPage, totalPages, pagedShown, pageSize: PAGE_SIZE,
+    q,
+    setQ: setQState,
+    filter,
+    setFilter,
+    counts,
+    females: result ? result.females : [],
+    page,
+    setPage,
+    totalPages: result ? result.totalPages : 1,
+    pageSize: FEMALES_PAGE_SIZE,
+    total: result ? result.total : 0,
+    totalInCollection: result ? result.totalInCollection : 0,
+    loading: !result && !error, // first load: show skeletons
+    fetching, // page/search change: keep showing the previous page, dimmed
+    error,
+    retry,
   };
 }
 
@@ -103,10 +146,10 @@ export function CollectionStatus({ loading, error, onRetry, total, query, layout
   return null;
 }
 
-/** Figma D02 — "Choose a female" modal (880px, 3-column card grid). Data: GET /api/cltch/females. */
-export default function FemaleSelectorModal({ open, onClose, females, selectedId, onSelect, loading, error, onRetry }) {
-  const { q, setQ, filter, setFilter, counts, shown, pagedShown, page, setPage, totalPages, pageSize } = useFemaleFilter(females);
-  const ready = !loading && !error && females.length > 0;
+/** Figma D02 — "Choose a female" modal (880px, 3-column card grid). Data: GET /api/cltch/females (paged). */
+export default function FemaleSelectorModal({ open, onClose, selectedId, onSelect }) {
+  const p = useFemalePages();
+  const ready = !p.loading && !p.error && p.totalInCollection > 0;
 
   return (
     <Dialog open={open} onClose={onClose} label="Choose a female">
@@ -115,30 +158,30 @@ export default function FemaleSelectorModal({ open, onClose, females, selectedId
           <div className="flex flex-1 flex-col gap-0.5">
             <h2 className="text-h1">Choose a female</h2>
             <p className="text-body-sm text-stone-500">
-              {loading ? 'Loading your Cltch collection…' : `${females.length} female${females.length === 1 ? '' : 's'} in your Cltch collection`}
+              {p.loading ? 'Loading your Cltch collection…' : `${p.totalInCollection} female${p.totalInCollection === 1 ? '' : 's'} in your Cltch collection`}
             </p>
           </div>
           <IconButton icon="x" label="Close" onClick={onClose} />
         </div>
         {ready && (
           <>
-            <SearchInput value={q} onChange={setQ} label="Search females" />
-            <FilterChips filter={filter} setFilter={setFilter} counts={counts} />
+            <SearchInput value={p.q} onChange={p.setQ} label="Search females" />
+            <FilterChips filter={p.filter} setFilter={p.setFilter} counts={p.counts} />
           </>
         )}
-        {ready && shown.length > 0 ? (
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-[repeat(3,264px)]">
-            {pagedShown.map((f) => (
+        {ready && p.total > 0 ? (
+          <ul className={clsx('grid grid-cols-1 gap-3 transition-opacity sm:grid-cols-2 md:grid-cols-[repeat(3,264px)]', p.fetching && 'opacity-60')} aria-busy={p.fetching}>
+            {p.females.map((f) => (
               <li key={f.id}>
-                <SnakeCard snake={f} selected={f.id === selectedId} onSelect={() => onSelect(f.id)} />
+                <SnakeCard snake={f} selected={f.id === selectedId} onSelect={() => onSelect(f)} />
               </li>
             ))}
           </ul>
         ) : (
-          <CollectionStatus loading={loading} error={error} onRetry={onRetry} total={females.length} query={q} />
+          <CollectionStatus loading={p.loading} error={p.error} onRetry={p.retry} total={p.totalInCollection} query={p.q} />
         )}
-        {ready && shown.length > 0 && (
-          <PaginationControls page={page} totalPages={totalPages} total={shown.length} pageSize={pageSize} onPageChange={setPage} />
+        {ready && p.total > 0 && (
+          <PaginationControls page={p.page} totalPages={p.totalPages} total={p.total} pageSize={p.pageSize} onPageChange={p.setPage} />
         )}
         <div className="flex items-center gap-2">
           <Icon name="info" size={16} className="shrink-0 text-stone-500" />
