@@ -11,7 +11,7 @@ function NameRow({ snake, dim }) {
   return (
     <span className="flex items-center gap-1.5">
       <span className={clsx('text-h3', dim ? 'text-charcoal-600' : 'text-charcoal-900')}>{snake.name}</span>
-      <Icon name={snake.sex === 'male' ? 'male' : 'female'} size={16} className="text-stone-500" />
+      <Icon name={snake.sex === 'male' ? 'male' : 'female'} size={16} className="shrink-0 text-stone-500" />
       <span className="sr-only">{snake.sex}</span>
     </span>
   );
