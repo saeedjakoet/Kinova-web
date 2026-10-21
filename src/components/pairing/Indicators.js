@@ -27,7 +27,7 @@ function Ring({ d, thick, score, color, scoreClass }) {
 }
 
 /** Figma: MatchIndicator — Level × Size (lg 112 | sm 48 | xs 44). Score is goal fit, not a success probability. */
-export function MatchIndicator({ score, size = 'sm' }) {
+export function MatchIndicator({ score, size = 'sm', caption }) {
   const lvl = LEVELS[levelFor(score)];
   const sr = `Match score ${score} out of 100, ${lvl.label}`;
   if (size === 'xs') {
@@ -39,7 +39,7 @@ export function MatchIndicator({ score, size = 'sm' }) {
         <Ring d={48} thick={5} score={score} color={lvl.ring} scoreClass="text-score-sm" />
         <span className="flex flex-col" aria-hidden="true">
           <span className={clsx('text-body-sm-md', lvl.text)}>{lvl.label}</span>
-          <span className="text-label text-stone-500">Match score</span>
+          <span className="text-label text-stone-500">{caption || 'Match score'}</span>
         </span>
       </span>
     );
@@ -48,7 +48,7 @@ export function MatchIndicator({ score, size = 'sm' }) {
     <span className="inline-flex flex-col items-center gap-2" role="img" aria-label={sr}>
       <Ring d={112} thick={10} score={score} color={lvl.ring} scoreClass="text-score-lg" />
       <span className={clsx('text-body-md', lvl.text)} aria-hidden="true">{lvl.label}</span>
-      <span className="text-label text-stone-500" aria-hidden="true">Match score out of 100</span>
+      <span className="text-label text-stone-500" aria-hidden="true">{caption ? `${caption} out of 100` : 'Match score out of 100'}</span>
     </span>
   );
 }

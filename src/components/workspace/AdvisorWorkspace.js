@@ -180,12 +180,11 @@ function MobileLayout({ ctx }) {
   const { s, female, results, selected, actions } = ctx;
   const screen = !female ? 'female' : s.mobileScreen;
   const t = advisorTeaser(ctx);
-  const invalid = !s.goals.text.trim() && !s.goals.traits.length;
   const other = results && selected ? results.recommendations.find((r) => r.male.id !== selected.male.id) : null;
 
   let bar = null;
   if (screen === 'goals' && female && female.ready) {
-    bar = <Button variant="primary" iconLeft="search" className="w-full" disabled={invalid} onClick={() => actions.run()}>Find pairings</Button>;
+    bar = <Button variant="primary" iconLeft="search" className="w-full" onClick={() => actions.run()}>Find pairings</Button>;
   } else if (screen === 'results' && s.view === 'detail') {
     bar = (
       <>

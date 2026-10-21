@@ -4,9 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import Chip from '../ui/Chip';
 import Button from '../ui/Button';
-import Icon from '../ui/Icon';
-import { Select, Textarea } from '../ui/Fields';
-import SnakeAvatar from '../snake/SnakeAvatar';
+import { Textarea } from '../ui/Fields';
+import { Callout } from '../ui/Misc';
 import { OBJECTIVES, TRAIT_OPTIONS, CONSTRAINT_OPTIONS } from '@/lib/goals';
 
 function Group({ label, children, id }) {
@@ -53,13 +52,15 @@ function AddMenu({ label, options, onPick, disabled }) {
  * Goals: free-text prompt + structured chips (objective single-select; traits & constraints multi-select)
  * + preferred male + primary action. Used in the desktop rail, tablet sheet and mobile step 2.
  */
-export default function GoalsForm({ goals, onChange, males, disabled, disabledText, onSubmit, submitLabel = 'Find pairings', loading, showAction = true, error }) {
+export default function GoalsForm({ goals, onChange, disabled, disabledText, onSubmit, submitLabel = 'Find pairings', loading, showAction = true, error }) {
   const set = (patch) => onChange({ ...goals, ...patch });
-  const invalid = !goals.text.trim() && !goals.traits.length;
   const constraintLabel = (id) => (CONSTRAINT_OPTIONS.find((c) => c.id === id) || {}).label;
 
   return (
     <div className={clsx('flex flex-col gap-4', disabled && 'opacity-55')}>
+      {!disabled && (
+        <Callout tone="Info" size="compact">Season goals aren&apos;t connected yet — ranking uses provisional criteria. These settings don&apos;t change results for now.</Callout>
+      )}
       <Textarea
         label="What are you hoping to produce?"
         value={disabled ? '' : goals.text}
@@ -97,23 +98,13 @@ export default function GoalsForm({ goals, onChange, males, disabled, disabledTe
           options={CONSTRAINT_OPTIONS.filter((c) => !goals.constraints.includes(c.id) && c.id !== 'maxKinship').map((c) => ({ value: c.id, label: constraintLabel(c.id) }))}
           onPick={(id) => set({ constraints: [...goals.constraints, id] })} />
       </Group>
-      <Select
-        label="Preferred male (optional)"
-        value={goals.preferredMaleId}
-        disabled={disabled}
-        onChange={(v) => set({ preferredMaleId: v })}
-        options={[
-          { value: null, label: 'Any eligible male', leading: <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ivory-100 text-charcoal-600"><Icon name="grid" size={14} /></span> },
-          ...males.map((m) => ({ value: m.id, label: `${m.name} · ${m.line.replace(' · ', ' ')}`, leading: <SnakeAvatar morph={m.morph} size={24} /> })),
-        ]}
-      />
       {showAction && (
         <>
-          <Button variant="primary" size="md" iconLeft="search" loading={loading} disabled={disabled || invalid} onClick={onSubmit} className="w-full">
+          <Button variant="primary" size="md" iconLeft="search" loading={loading} disabled={disabled} onClick={onSubmit} className="w-full">
             {loading ? 'Finding pairings…' : submitLabel}
           </Button>
           <p className="text-center text-label text-stone-500">
-            {disabled ? 'Select a ready female to set goals.' : invalid ? 'Describe at least one goal or pick a target trait.' : 'Screens 6 males in your collection · about 10 seconds'}
+            {disabled ? 'Select a ready female to set goals.' : 'Ranks your eligible males · top 10 checked first'}
           </p>
         </>
       )}

@@ -116,10 +116,10 @@ function StepRow({ state, title, sub }) {
 /** Figma: ExplanationPanel — Streaming state (loading). */
 export function StreamingPanel({ female, goalsLabel, step }) {
   const steps = [
-    [`Checked ${female.name}'s readiness`, `Mature, ${female.weight}, not gravid`],
-    ['Screened 6 males', '3 eligible · 3 excluded with reasons'],
-    ['Predicting offspring odds', 'Gene Engine · 3 pairings'],
-    ['Ranking and writing the explanation', null],
+    [`Loaded ${female.name}'s profile`, `${female.weight} · ${female.age}`],
+    ['Screening males', 'Status, age and maturity checks'],
+    ['Checking the shortlist', 'Relatedness and Gene Engine welfare warnings'],
+    ['Ranking on pairing criteria', null],
   ];
   return (
     <PanelShell title="Working on it…" subtitle={goalsLabel} live="polite">
@@ -160,15 +160,24 @@ export function ExplanationPanel({ explanation, collapsed, onToggle, onAsk, aski
   return (
     <PanelShell title={e.title} subtitle={e.subtitle} action={onToggle ? toggle : null}>
       <p className="text-body-lg">{e.summary}</p>
-      <Section icon="target" title="How it fits your goals"><Bullets items={e.fits} /></Section>
-      <Section icon="egg" title="Possible offspring">
-        <OddsList rows={e.odds} />
-        <p className="text-label text-stone-500">Chance per egg. A typical clutch is 5–8 eggs, so real results can differ a lot.</p>
-      </Section>
-      <Section icon="dna" title="Genetics & lineage"><p className="text-body-sm text-charcoal-700">{e.genetics}</p></Section>
+      <Section icon="target" title={e.fitsTitle || 'How it fits your goals'}><Bullets items={e.fits} /></Section>
+      {e.odds && e.odds.length > 0 ? (
+        <Section icon="egg" title="Possible offspring">
+          <OddsList rows={e.odds} />
+          <p className="text-label text-stone-500">Chance per egg. A typical clutch is 5–8 eggs, so real results can differ a lot.</p>
+        </Section>
+      ) : (
+        <Section icon="egg" title="Possible offspring"><p className="text-body-sm text-stone-500">Open <span className="text-body-sm-md">View pairing</span> to see the Gene Engine&apos;s possible offspring for this pair.</p></Section>
+      )}
+      <Section icon="dna" title={e.oddsless ? 'Relatedness' : 'Genetics & lineage'}><p className="text-body-sm text-charcoal-700">{e.genetics}</p></Section>
+      {e.awaiting && e.awaiting.length > 0 && (
+        <Section icon="help" title="Awaiting your input">
+          <Bullets items={e.awaiting} />
+        </Section>
+      )}
       <Callout tone={e.caveat.tone} title={e.caveat.title}>{e.caveat.body}</Callout>
-      <FollowUps items={e.followUps} onAsk={onAsk} disabled={asking} />
-      <Composer onAsk={onAsk} disabled={asking} />
+      {onAsk && <FollowUps items={e.followUps} onAsk={onAsk} disabled={asking} />}
+      {onAsk && <Composer onAsk={onAsk} disabled={asking} />}
       <EstimateNotice />
     </PanelShell>
   );

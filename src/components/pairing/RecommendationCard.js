@@ -50,7 +50,7 @@ export default function RecommendationCard({ rec, layout = 'desktop', selected, 
           <p className="text-body-sm text-charcoal-600">Ball python · {m.age} · {m.weight}</p>
           <MorphTags tags={m.tags} />
         </div>
-        <MatchIndicator score={rec.score} size={mobile ? 'xs' : 'sm'} />
+        <MatchIndicator score={rec.score} size={mobile ? 'xs' : 'sm'} caption={rec.source === 'cltch' ? 'Provisional score' : undefined} />
       </div>
 
       <p className={clsx('pointer-events-none relative text-charcoal-700', mobile ? 'text-body-sm' : 'text-body')}>{rec.reason}</p>

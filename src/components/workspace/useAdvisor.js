@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { askAdvisor, findPairings, getCollection, getFemale } from '@/lib/api';
+import { askAdvisor, getCollection, getFemale, getMaleCandidates } from '@/lib/api';
+import { mergeResults, toResults } from '@/lib/candidates';
 import { femaleProfile } from '@/lib/cltch';
 import { DEFAULT_GOALS, goalsFor } from '@/lib/goals';
 
 // One reducer drives every screen in the Figma flow:
 // D01 empty · D02 selector · D03 goals · D04 loading · D05 results · D06 detail · D07 compare · D08 refine · D09 error/blocked
+const SHORTLIST = 10;
+
 const initial = {
   female: null, // the selected female (females themselves load page by page in the selector)
   males: [],
@@ -35,6 +38,8 @@ const initial = {
   advisorSheet: false,
   goalsSheet: false,
   planned: {},
+  loadingMore: false,
+  loadMoreError: null,
 };
 
 function reducer(s, a) {
@@ -64,11 +69,17 @@ function reducer(s, a) {
         ...s, run: 'done', results: a.results, error: null,
         selectedMaleId: recs[0] ? recs[0].male.id : null,
         compareIds: recs.slice(0, 2).map((r) => r.male.id),
-        excludedOpen: true,
+        excludedOpen: a.results.excluded.length <= 5,
       };
     }
     case 'runError':
       return { ...s, run: 'error', error: a.error };
+    case 'moreStart':
+      return { ...s, loadingMore: true, loadMoreError: null };
+    case 'moreDone':
+      return { ...s, loadingMore: false, results: mergeResults(s.results, a.results) };
+    case 'moreError':
+      return { ...s, loadingMore: false, loadMoreError: a.message };
     case 'selectMale':
       return { ...s, selectedMaleId: a.id, panelMode: 'explain', panelCollapsed: false };
     case 'view':
@@ -166,19 +177,17 @@ export default function useAdvisor() {
   const recs = results ? results.recommendations : [];
   const selected = recs.find((r) => r.male.id === s.selectedMaleId) || recs[0] || null;
 
-  const run = useCallback(async (goalsOverride) => {
-    const goals = goalsOverride || s.goals;
+  // Find pairings: ranked males from the API (shortlist of 10; "check more" pages through the rest).
+  // Breeding goals are not sent yet — objectives aren't connected; ranking uses provisional criteria.
+  const run = useCallback(async () => {
     if (!s.femaleId) return;
-    if (!goals.text.trim() && !goals.traits.length) {
-      dispatch({ type: 'goalError', message: 'Describe at least one goal or pick a target trait.' });
-      return;
-    }
     dispatch({ type: 'runStart' });
     clearInterval(timer.current);
     timer.current = setInterval(() => dispatch({ type: 'runStep' }), 420);
     try {
-      const data = await findPairings({ femaleId: s.femaleId, goals, simulateFailure, female: femaleProfile(female) });
-      dispatch({ type: 'runDone', results: data });
+      if (simulateFailure) throw Object.assign(new Error("Cltch didn't respond in time."), { code: 'GENE_ENGINE_TIMEOUT' });
+      const data = await getMaleCandidates(s.femaleId, { limit: SHORTLIST });
+      dispatch({ type: 'runDone', results: toResults(data, female) });
       const pv = pendingView.current;
       pendingView.current = null;
       if (pv && pv.view !== 'list') {
@@ -191,7 +200,26 @@ export default function useAdvisor() {
     } finally {
       clearInterval(timer.current);
     }
-  }, [s.femaleId, s.goals, simulateFailure, female]);
+  }, [s.femaleId, simulateFailure, female]);
+
+  const loadMore = useCallback(async () => {
+    const paging = s.results && s.results.paging;
+    if (!s.femaleId || s.loadingMore || !paging || !paging.hasMore) return;
+    dispatch({ type: 'moreStart' });
+    try {
+      const data = await getMaleCandidates(s.femaleId, { offset: paging.nextOffset, limit: SHORTLIST });
+      dispatch({ type: 'moreDone', results: toResults(data, female) });
+    } catch (e) {
+      dispatch({ type: 'moreError', message: e.message });
+    }
+  }, [s.femaleId, s.loadingMore, s.results, female]);
+
+  // Warm the API caches (female, male list, pedigree) as soon as a female is picked,
+  // so Find pairings only pays for the shortlist checks.
+  useEffect(() => {
+    if (!s.femaleId || !female || !female.ready) return;
+    getMaleCandidates(s.femaleId, { limit: 0 }).catch(() => {});
+  }, [s.femaleId, female]);
 
   useEffect(() => () => clearInterval(timer.current), []);
 
@@ -252,6 +280,7 @@ export default function useAdvisor() {
     setGoals: (goals) => dispatch({ type: 'setGoals', goals }),
     run,
     retry: () => run(),
+    loadMore,
     selectMale: (id) => dispatch({ type: 'selectMale', id }),
     viewDetail: (id) => dispatch({ type: 'view', view: 'detail', id }),
     viewList: () => dispatch({ type: 'view', view: 'list' }),

@@ -12,6 +12,7 @@ import { PairHeader, OffspringCard, GeneticsCard, LineageCard, CompletenessCard,
 import { ExplanationPanel, StreamingPanel, ErrorPanel, ConversationPanel, PanelShell, FollowUps, Composer, EstimateNotice } from '../advisor/Advisor';
 import { FeedbackState, HowItWorks, ResultsHeader } from '../layout/Chrome';
 import GoalsForm from '../layout/GoalsForm';
+import OffspringPanel from '../pairing/Offspring';
 
 const OBJECTIVE_REASON = {
   'Low risk': 'a proven record matters more for this objective',
@@ -134,9 +135,16 @@ export function ResultsList({ ctx, layout = 'desktop' }) {
   const n = recs.length;
   const changes = s.chat.changes;
   const compareCount = s.compareIds.length;
+  const cltch = results.source === 'cltch';
+  const notChecked = results.notChecked || [];
 
   return (
     <>
+      {cltch && (
+        <Callout tone="Missing" title="Provisional ranking">
+          Scored on Kinova&apos;s pairing criteria with an assumed season goal (recessive progress). Sex outcomes and sellable mix are awaiting your input.
+        </Callout>
+      )}
       {results.sampleMales && (
         <Callout tone="Missing" title="Approximate results">
           {female.name}&apos;s genetics are estimated from her Cltch morphs and ranked against the PoC&apos;s sample males until the pairings endpoint is connected.
@@ -148,9 +156,13 @@ export function ResultsList({ ctx, layout = 'desktop' }) {
       {!mobile && (
         <ResultsHeader
           eyebrow="Step 3 · Recommended pairings"
-          title={n ? `${n} male${n === 1 ? '' : 's'} suit${n === 1 ? 's' : ''} ${female.name}` : `No males suit ${female.name}`}
-          sub={`Ranked for ${results.objective}${results.spec ? ` · target ${results.spec}` : ''} · ${results.screened} ${results.sampleMales ? 'sample males' : 'males'} screened, ${results.excluded.length} excluded`}
-          right={n > 1 ? (
+          title={cltch
+            ? (n ? `Top ${n} male${n === 1 ? '' : 's'} for ${female.name}` : `No eligible males checked yet for ${female.name}`)
+            : (n ? `${n} male${n === 1 ? '' : 's'} suit${n === 1 ? 's' : ''} ${female.name}` : `No males suit ${female.name}`)}
+          sub={cltch
+            ? `Provisional criteria · ${results.screened} males screened · ${results.excluded.length} excluded · ${notChecked.length} not checked yet`
+            : `Ranked for ${results.objective}${results.spec ? ` · target ${results.spec}` : ''} · ${results.screened} ${results.sampleMales ? 'sample males' : 'males'} screened, ${results.excluded.length} excluded`}
+          right={n > 1 && !cltch ? (
             <>
               <SortMenu value={sortBy} onChange={setSortBy} />
               <Button variant="primary" size="sm" iconLeft="columns" disabled={compareCount < 2} onClick={() => actions.viewCompare()}>
@@ -161,8 +173,11 @@ export function ResultsList({ ctx, layout = 'desktop' }) {
         />
       )}
       {n === 0 && (
-        <FeedbackState type="NoResults" title="No males meet these constraints"
-          body="Every male was excluded — see the reasons below. Try removing a constraint or choosing a different objective." />
+        <FeedbackState type="NoResults"
+          title={cltch && notChecked.length ? 'None of the checked males passed' : 'No males meet these constraints'}
+          body={cltch && notChecked.length
+            ? 'Every male in this shortlist was excluded — see the reasons below. Check the next males to keep looking.'
+            : 'Every male was excluded — see the reasons below.'} />
       )}
       <ol className="flex flex-col gap-4" aria-label="Recommended males, ranked">
         {recs.map((r) => (
@@ -176,15 +191,108 @@ export function ResultsList({ ctx, layout = 'desktop' }) {
               onSelect={() => (mobile ? actions.viewDetail(r.male.id) : actions.selectMale(r.male.id))}
               onView={actions.viewDetail}
               onAsk={(rec) => { actions.selectMale(rec.male.id); if (layout === 'tablet') actions.setAdvisorSheet(true); }}
-              onToggleCompare={actions.toggleCompare}
+              onToggleCompare={cltch ? null : actions.toggleCompare}
               change={changes ? changes[r.male.id] : null}
             />
           </li>
         ))}
       </ol>
+      {cltch && results.paging && results.paging.hasMore && (
+        <NotCheckedSection count={notChecked.length} loading={s.loadingMore} error={s.loadMoreError} onMore={actions.loadMore} males={notChecked} compact={mobile} />
+      )}
       {results.excluded.length > 0 && (
         <ExcludedMales excluded={results.excluded} open={s.excludedOpen} onToggle={() => actions.setExcludedOpen(!s.excludedOpen)} compact={mobile} />
       )}
+    </>
+  );
+}
+
+/** Ready males that haven't had relatedness/welfare checks yet — listed so nobody disappears. */
+function NotCheckedSection({ count, loading, error, onMore, males, compact }) {
+  const [open, setOpen] = useState(false);
+  const next = Math.min(10, count);
+  return (
+    <section className="overflow-hidden rounded-card border border-line bg-card" aria-label="Males not checked yet">
+      <div className={clsx('flex flex-wrap items-center gap-2.5', compact ? 'px-4 py-3.5' : 'px-5 py-3.5')}>
+        <Icon name="clock" size={18} className="text-stone-500" />
+        <span className="text-body-md">{count} more ready male{count === 1 ? '' : 's'} not checked yet</span>
+        <span className="flex-1 text-body-sm text-stone-500">{compact ? '' : 'Ordered by pre-score; relatedness and welfare run in batches of 10'}</span>
+        <Button variant="secondary" size="sm" iconLeft="refresh" loading={loading} onClick={onMore}>
+          {loading ? 'Checking…' : `Check ${next} more`}
+        </Button>
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="focus-ring rounded-icon p-1 text-stone-500" aria-label={open ? 'Hide list' : 'Show list'}>
+          <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} />
+        </button>
+      </div>
+      {error && <div className="px-5 pb-3"><Callout tone="Risk" size="compact">{error}</Callout></div>}
+      {open && (
+        <ul className="border-t border-line">
+          {males.map((m) => (
+            <li key={m.id} className="flex items-center gap-3 border-b border-line px-5 py-2.5 last:border-b-0">
+              <span className="w-10 text-right text-label text-stone-500">{m.preScore}</span>
+              <span className="text-body-sm-md">{m.name}</span>
+              <span className="min-w-0 flex-1 truncate text-label text-stone-500">{m.line} · {m.weight} · {m.age}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Detail for a real Cltch male: criteria, relatedness and checks (offspring odds not connected yet). */
+function CltchDetail({ ctx, layout }) {
+  const { female, selected: rec, actions } = ctx;
+  const mobile = layout === 'mobile';
+  const rel = rec.relatedness;
+  return (
+    <>
+      <Button variant="ghost" size="sm" iconLeft="arrow-left" onClick={actions.viewList} className="self-start">{mobile ? 'Results' : 'All pairings'}</Button>
+      <PairHeader female={female} rec={rec} mobile={mobile} />
+      <OffspringPanel female={female} male={rec.male} />
+      <section className="flex flex-col gap-3 rounded-card border border-line bg-card p-5" aria-label="Pairing criteria">
+        <h3 className="text-h3">Pairing criteria · provisional score {rec.score}</h3>
+        <ul className="flex flex-col gap-3">
+          {rec.criteria.map((c) => (
+            <li key={c.key} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <span className="flex-1 text-body-sm-md">{c.label}</span>
+                <span className="text-body-sm-md tabular-nums text-charcoal-700">{c.score == null ? '—' : `${Math.round(c.score * 100)}`}</span>
+              </div>
+              <span className="block h-2 overflow-hidden rounded-[4px] bg-ivory-100" aria-hidden="true">
+                <span className="block h-full rounded-[4px] bg-moss-500" style={{ width: `${c.score == null ? 0 : Math.round(c.score * 100)}%` }} />
+              </span>
+              <span className="text-label text-stone-500">{c.detail} · weight {Math.round(c.weight * 100)}%</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="flex flex-col gap-3 rounded-card border border-line bg-card p-5" aria-label="Relatedness">
+        <h3 className="text-h3">Relatedness</h3>
+        {rel ? (
+          <>
+            <p className="text-body-sm text-charcoal-700">
+              {rel.known
+                ? `${rel.coefficient === 0 ? '0% — no shared ancestors' : `${Math.round(rel.coefficient * 1000) / 10}% (${rel.relationship})`}.`
+                : 'Unknown — pedigree not recorded in Cltch (not assumed to be zero).'}
+            </p>
+            {rel.pedigreeGenerations && (
+              <p className="text-label text-stone-500">
+                Pedigree found: {female.name} {rel.pedigreeGenerations.female} gen · {rec.male.name} {rel.pedigreeGenerations.male} gen · searched {rel.pedigreeGenerations.searched}
+              </p>
+            )}
+            {rel.sharedAncestors && rel.sharedAncestors.length > 0 && (
+              <p className="text-body-sm text-charcoal-700">Shared ancestors: {rel.sharedAncestors.map((a) => a.name || a.id).join(', ')}</p>
+            )}
+          </>
+        ) : <p className="text-body-sm text-stone-500">Not checked.</p>}
+      </section>
+      {rec.warnings.length > 0 && (
+        <Callout tone="Caution" title="Warnings">{rec.warnings.map((w) => w.message).join(' ')}</Callout>
+      )}
+      <Callout tone="Missing" title="Awaiting your input">
+        {rec.awaitingInput.map((a) => `${a.label}: ${a.detail}`).join(' ')}
+      </Callout>
     </>
   );
 }
@@ -194,6 +302,7 @@ export function DetailView({ ctx, layout = 'desktop' }) {
   const mobile = layout === 'mobile';
   const rec = selected;
   if (!rec) return null;
+  if (rec.source === 'cltch') return <CltchDetail ctx={ctx} layout={layout} />;
   const other = results.recommendations.find((r) => r.male.id !== rec.male.id);
   const tabs = mobile ? ['Offspring', 'Genetics', 'Lineage'] : ['Offspring', 'Genetics', 'Lineage', 'Records'];
   const tab = tabs.includes(s.detailTab) ? s.detailTab : 'Offspring';
@@ -442,7 +551,7 @@ export function AdvisorPanel({ ctx }) {
       explanation={selected.explanation}
       collapsed={s.panelCollapsed}
       onToggle={() => actions.setPanelCollapsed(!s.panelCollapsed)}
-      onAsk={actions.ask}
+      onAsk={selected.source === 'cltch' ? undefined : actions.ask}
       asking={s.asking}
     />
   );

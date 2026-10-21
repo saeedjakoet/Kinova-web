@@ -42,10 +42,10 @@ export const FEMALES_PAGE_SIZE = 6;
 const FEMALES_CACHE_TTL_MS = 3 * 60 * 1000; // matches the API's CLTCH_CACHE_TTL_SECONDS
 const femalesCache = new Map(); // query string -> { at, promise }
 
-async function cltchGet(path, params) {
+async function cltchGet(path, params, { timeoutMs = CLTCH_TIMEOUT_MS, fallbackMessage = "Couldn't load your females from Cltch." } = {}) {
   const query = new URLSearchParams(params);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), CLTCH_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   let res;
   try {
     res = await fetch(`${API_URL}${path}?${query.toString()}`, {
@@ -70,7 +70,7 @@ async function cltchGet(path, params) {
     const d = data && data.detail;
     throw new ApiError(res.status, {
       code: (d && d.code) || 'LOAD_FAILED',
-      message: (d && d.message) || "Couldn't load your females from Cltch.",
+      message: (d && d.message) || fallbackMessage,
     });
   }
   return data;
@@ -130,6 +130,41 @@ export async function getFemale(id) {
 export async function getCollection() {
   const mock = await getFemales().catch(() => ({ males: [] }));
   return { males: mock.males || [], syncedAt: 'just now' };
+}
+
+/**
+ * Ranked male candidates for a female: GET /api/cltch/females/{id}/males.
+ * The API checks a shortlist window (limit) per call; use paging.nextOffset to check more.
+ * limit 0 only warms the API's caches (used when a female is selected).
+ */
+export async function getMaleCandidates(femaleId, { offset = 0, limit = 10, refresh = false } = {}) {
+  const params = {
+    pedigree_depth: '2',
+    include_pairing_warnings: 'true',
+    limit: String(limit),
+    offset: String(offset),
+  };
+  if (refresh) params.refresh = 'true';
+  return cltchGet(`/api/cltch/females/${encodeURIComponent(femaleId)}/males`, params, {
+    timeoutMs: 45000,
+    fallbackMessage: "Couldn't load male candidates from Cltch.",
+  });
+}
+
+const offspringCache = new Map(); // "female:male" -> promise (per page load)
+
+/** Possible offspring for one pair: GET /api/cltch/females/{femaleId}/males/{maleId}/offspring. */
+export function getOffspring(femaleId, maleId, { refresh = false } = {}) {
+  const key = `${femaleId}:${maleId}`;
+  if (!refresh && offspringCache.has(key)) return offspringCache.get(key);
+  const promise = cltchGet(
+    `/api/cltch/females/${encodeURIComponent(femaleId)}/males/${encodeURIComponent(maleId)}/offspring`,
+    refresh ? { refresh: 'true' } : {},
+    { timeoutMs: 30000, fallbackMessage: "Couldn't load possible offspring from Cltch." },
+  );
+  offspringCache.set(key, promise);
+  promise.catch(() => offspringCache.delete(key));
+  return promise;
 }
 
 export function findPairings({ femaleId, goals, simulateFailure, female }) {
