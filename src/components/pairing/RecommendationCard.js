@@ -26,23 +26,24 @@ export default function RecommendationCard({ rec, layout = 'desktop', selected, 
   const shell = clsx(
     'relative flex w-full flex-col rounded-card border transition-[box-shadow,border-color,background-color]',
     mobile ? 'gap-3 p-4' : 'gap-4 p-5',
-    selected ? 'stroke-selected bg-card' : compared ? 'border-line bg-sage-100 shadow-sm' : 'border-line bg-card shadow-sm hover:border-line-strong',
+    // Selected = green fill + dark outline. Compared cards stay white; their ticked Compare box marks them.
+    selected ? 'stroke-selected bg-sage-100' : compared ? 'border-line-strong bg-card shadow-sm' : 'border-line bg-card shadow-sm hover:border-line-strong',
   );
   const headingId = `rec-${m.id}`;
 
   return (
-    <article className={shell} aria-labelledby={headingId} aria-current={selected ? 'true' : undefined}>
+    <article className={shell} aria-labelledby={headingId} aria-current={selected ? 'true' : undefined} data-testid="rec-card" data-male-id={m.id}>
       {/* Whole-card click selects the pairing for the advisor panel (buttons inside stop propagation). */}
       <button type="button" onClick={onSelect} className="focus-ring absolute inset-0 rounded-card" aria-label={`Explain ${m.name} (rank ${rec.rank})`} />
       <div className={clsx('pointer-events-none relative flex items-start', mobile ? 'gap-3' : 'gap-4')}>
         {!mobile && (
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sage-100 text-body-sm-md text-forest-900" aria-label={`Rank ${rec.rank}`}>{rec.rank}</span>
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sage-100 text-body-sm-md text-forest-900" aria-label={`Rank ${rec.rank}`} data-testid="rec-rank">{rec.rank}</span>
         )}
         <SnakeAvatar morph={m.morph} size={mobile ? 44 : 56} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             {mobile && <span className="text-body-sm-md text-moss-700">#{rec.rank}</span>}
-            <h3 id={headingId} className="text-h3">{m.name}</h3>
+            <h3 id={headingId} className="text-h3" data-testid="rec-name">{m.name}</h3>
             <Icon name="male" size={16} className="text-stone-500" />
             {!mobile && <span className="text-label text-stone-500">{m.cltchId}</span>}
             <ChangePill change={change} />
@@ -50,7 +51,7 @@ export default function RecommendationCard({ rec, layout = 'desktop', selected, 
           <p className="text-body-sm text-charcoal-600">Ball python · {m.age} · {m.weight}</p>
           <MorphTags tags={m.tags} />
         </div>
-        <MatchIndicator score={rec.score} size={mobile ? 'xs' : 'sm'} caption={rec.source === 'cltch' ? 'Provisional score' : undefined} />
+        <MatchIndicator score={rec.score} size={mobile ? 'xs' : 'sm'} caption={rec.source === 'cltch' ? 'Provisional score' : undefined} testId="rec-score" />
       </div>
 
       <p className={clsx('pointer-events-none relative text-charcoal-700', mobile ? 'text-body-sm' : 'text-body')}>{rec.reason}</p>
@@ -62,12 +63,14 @@ export default function RecommendationCard({ rec, layout = 'desktop', selected, 
           {rec.stats.map(([label, value, note], i) => (
             <div key={label} className={clsx('flex min-w-0 flex-1 flex-col gap-0.5', i === 0 ? 'pr-3.5' : 'border-l border-line px-3.5')}>
               <dt className="text-eyebrow text-stone-500">{label}</dt>
-              <dd className="text-body-md">{value}</dd>
+              <dd className="text-body-md" data-testid={`rec-stat-${i}`}>{value}</dd>
               <dd className="text-label text-stone-500">{note}</dd>
             </div>
           ))}
         </dl>
       )}
+
+      {rec.rankNote && <Callout tone="Info" size="compact" className="pointer-events-none relative">{rec.rankNote}</Callout>}
 
       {rec.flag && <Callout tone="Missing" size="compact" className="pointer-events-none relative">{rec.flag}</Callout>}
 

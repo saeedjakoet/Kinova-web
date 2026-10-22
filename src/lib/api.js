@@ -137,18 +137,39 @@ export async function getCollection() {
  * The API checks a shortlist window (limit) per call; use paging.nextOffset to check more.
  * limit 0 only warms the API's caches (used when a female is selected).
  */
-export async function getMaleCandidates(femaleId, { offset = 0, limit = 10, refresh = false } = {}) {
+export async function getMaleCandidates(femaleId, { offset = 0, limit = 10, refresh = false, targets = [] } = {}) {
   const params = {
     pedigree_depth: '2',
     include_pairing_warnings: 'true',
     limit: String(limit),
     offset: String(offset),
   };
+  if (targets.length) params.targets = targets.join(',');
   if (refresh) params.refresh = 'true';
   return cltchGet(`/api/cltch/females/${encodeURIComponent(femaleId)}/males`, params, {
     timeoutMs: 45000,
     fallbackMessage: "Couldn't load male candidates from Cltch.",
   });
+}
+
+const morphSearchCache = new Map(); // query -> promise
+
+/**
+ * Season-target options from the Cltch morph catalogue: GET /api/cltch/morphs.
+ * Each option is one morph form (e.g. "Clown", "Het Clown", "Super Pastel") or a combo morph.
+ */
+export function searchMorphs(q = '', { limit = 30, speciesGroup = 1 } = {}) {
+  const key = `${speciesGroup}:${q.trim().toLowerCase()}:${limit}`;
+  if (morphSearchCache.has(key)) return morphSearchCache.get(key);
+  const params = { species_group: String(speciesGroup), limit: String(limit), include_combos: 'true' };
+  if (q.trim()) params.q = q.trim();
+  const promise = cltchGet('/api/cltch/morphs', params, {
+    timeoutMs: 20000,
+    fallbackMessage: "Couldn't load the morph catalogue from Cltch.",
+  }).then((d) => d.data || []);
+  morphSearchCache.set(key, promise);
+  promise.catch(() => morphSearchCache.delete(key));
+  return promise;
 }
 
 const offspringCache = new Map(); // "female:male" -> promise (per page load)

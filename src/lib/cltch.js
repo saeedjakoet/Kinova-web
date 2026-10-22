@@ -92,7 +92,7 @@ export function adaptFemale(row, policy = {}) {
     sex: 'female',
     morph: avatarFor(row.id, morphNames),
     line: morphNames.length ? morphNames.join(' · ') : 'Morph not recorded',
-    tags: morphNames.slice(0, 3).map(tagFor),
+    tags: morphNames.map(tagFor),
     morphNames,
     age: ageLabel || 'Age unknown',
     weight: hasWeight ? grams(weightNum) : 'Weight unknown',

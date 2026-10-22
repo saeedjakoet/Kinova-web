@@ -8,6 +8,7 @@ import Icon from '../ui/Icon';
 import { Callout, Divider, StepMarker, Tabs, Bullets } from '../ui/Misc';
 import { FemaleSummary } from '../snake/SnakeCards';
 import RecommendationCard, { RecommendationCardSkeleton, ExcludedMales } from '../pairing/RecommendationCard';
+import { SHORTLIST } from '@/lib/candidates';
 import { PairHeader, OffspringCard, GeneticsCard, LineageCard, CompletenessCard, CompareTable } from '../pairing/Detail';
 import { ExplanationPanel, StreamingPanel, ErrorPanel, ConversationPanel, PanelShell, FollowUps, Composer, EstimateNotice } from '../advisor/Advisor';
 import { FeedbackState, HowItWorks, ResultsHeader } from '../layout/Chrome';
@@ -130,7 +131,9 @@ function refineBanner(results, changes) {
 export function ResultsList({ ctx, layout = 'desktop' }) {
   const { s, female, results, actions } = ctx;
   const [sortBy, setSortBy] = useState('Match score');
-  const recs = sortRecs(results.recommendations, sortBy);
+  // Cltch runs show only the top SHORTLIST; the API checks further until that top is guaranteed.
+  const allRecs = sortRecs(results.recommendations, sortBy);
+  const recs = results.source === 'cltch' ? allRecs.slice(0, SHORTLIST) : allRecs;
   const mobile = layout === 'mobile';
   const n = recs.length;
   const changes = s.chat.changes;
@@ -141,9 +144,15 @@ export function ResultsList({ ctx, layout = 'desktop' }) {
   return (
     <>
       {cltch && (
-        <Callout tone="Missing" title="Provisional ranking">
-          Scored on Kinova&apos;s pairing criteria with an assumed season goal (recessive progress). Sex outcomes and sellable mix are awaiting your input.
-        </Callout>
+        results.targets && results.targets.length ? (
+          <Callout tone="Info" title={`Ranked for ${results.targetLabel}`}>
+            Every ready male was scored on the chance of a baby showing {results.targetLabel} in one egg, so this order holds across your whole collection. Relatedness, collection gaps and clean combos only break near-ties. Sellable mix is still awaiting your input.
+          </Callout>
+        ) : (
+          <Callout tone="Missing" title="Provisional ranking">
+            No season targets selected, so males are scored on Kinova&apos;s pairing criteria with an assumed goal (recessive progress). Pick Season targets on the left to rank by the odds of the morphs you want.
+          </Callout>
+        )
       )}
       {results.sampleMales && (
         <Callout tone="Missing" title="Approximate results">
@@ -160,7 +169,7 @@ export function ResultsList({ ctx, layout = 'desktop' }) {
             ? (n ? `Top ${n} male${n === 1 ? '' : 's'} for ${female.name}` : `No eligible males checked yet for ${female.name}`)
             : (n ? `${n} male${n === 1 ? '' : 's'} suit${n === 1 ? 's' : ''} ${female.name}` : `No males suit ${female.name}`)}
           sub={cltch
-            ? `Provisional criteria · ${results.screened} males screened · ${results.excluded.length} excluded · ${notChecked.length} not checked yet`
+            ? `${results.rankedBy} · ${results.screened} males screened · ${results.excluded.length} excluded`
             : `Ranked for ${results.objective}${results.spec ? ` · target ${results.spec}` : ''} · ${results.screened} ${results.sampleMales ? 'sample males' : 'males'} screened, ${results.excluded.length} excluded`}
           right={n > 1 && !cltch ? (
             <>
@@ -197,8 +206,15 @@ export function ResultsList({ ctx, layout = 'desktop' }) {
           </li>
         ))}
       </ol>
-      {cltch && results.paging && results.paging.hasMore && (
-        <NotCheckedSection count={notChecked.length} loading={s.loadingMore} error={s.loadMoreError} onMore={actions.loadMore} males={notChecked} compact={mobile} />
+      {cltch && n > 0 && (
+        <TopGuarantee guaranteed={!!(results.paging && results.paging.topGuaranteed)} shownCount={n}
+          readyTotal={results.paging ? results.paging.readyTotal : n} notes={results.notes}
+          canContinue={!!(results.paging && results.paging.hasMore)}
+          loading={s.loadingMore} error={s.loadMoreError} onMore={actions.loadMore} compact={mobile} />
+      )}
+      {cltch && n === 0 && results.paging && results.paging.hasMore && (
+        <TopGuarantee guaranteed={false} shownCount={0} readyTotal={results.paging.readyTotal} notes={results.notes}
+          canContinue loading={s.loadingMore} error={s.loadMoreError} onMore={actions.loadMore} compact={mobile} />
       )}
       {results.excluded.length > 0 && (
         <ExcludedMales excluded={results.excluded} open={s.excludedOpen} onToggle={() => actions.setExcludedOpen(!s.excludedOpen)} compact={mobile} />
@@ -207,35 +223,28 @@ export function ResultsList({ ctx, layout = 'desktop' }) {
   );
 }
 
-/** Ready males that haven't had relatedness/welfare checks yet — listed so nobody disappears. */
-function NotCheckedSection({ count, loading, error, onMore, males, compact }) {
-  const [open, setOpen] = useState(false);
-  const next = Math.min(10, count);
+/**
+ * One line under the top picks. Guaranteed: none of the other ready males could beat them, so they aren't
+ * listed. Not guaranteed (check limit hit or a check didn't complete): say why and offer to keep checking.
+ */
+function TopGuarantee({ guaranteed, shownCount, readyTotal, notes, canContinue, loading, error, onMore, compact }) {
+  const why = (notes || []).find((t) => /didn't complete|Stopped at/.test(t));
   return (
-    <section className="overflow-hidden rounded-card border border-line bg-card" aria-label="Males not checked yet">
+    <section className="overflow-hidden rounded-card border border-line bg-card" aria-label="How sure is this top list">
       <div className={clsx('flex flex-wrap items-center gap-2.5', compact ? 'px-4 py-3.5' : 'px-5 py-3.5')}>
-        <Icon name="clock" size={18} className="text-stone-500" />
-        <span className="text-body-md">{count} more ready male{count === 1 ? '' : 's'} not checked yet</span>
-        <span className="flex-1 text-body-sm text-stone-500">{compact ? '' : 'Ordered by pre-score; relatedness and welfare run in batches of 10'}</span>
-        <Button variant="secondary" size="sm" iconLeft="refresh" loading={loading} onClick={onMore}>
-          {loading ? 'Checking…' : `Check ${next} more`}
-        </Button>
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="focus-ring rounded-icon p-1 text-stone-500" aria-label={open ? 'Hide list' : 'Show list'}>
-          <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} />
-        </button>
+        <Icon name={guaranteed ? 'check' : 'alert'} size={18} className={guaranteed ? 'text-forest-700' : 'text-caution'} />
+        <span className="flex-1 text-body-md">
+          {guaranteed
+            ? `The best ${shownCount} of all ${readyTotal} ready males. No other male could rank higher, even as a perfect outcross.`
+            : why || `An unchecked male could still rank higher.`}
+        </span>
+        {!guaranteed && canContinue && (
+          <Button variant="secondary" size="sm" iconLeft="refresh" loading={loading} onClick={onMore}>
+            {loading ? 'Checking…' : 'Keep checking'}
+          </Button>
+        )}
       </div>
       {error && <div className="px-5 pb-3"><Callout tone="Risk" size="compact">{error}</Callout></div>}
-      {open && (
-        <ul className="border-t border-line">
-          {males.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 border-b border-line px-5 py-2.5 last:border-b-0">
-              <span className="w-10 text-right text-label text-stone-500">{m.preScore}</span>
-              <span className="text-body-sm-md">{m.name}</span>
-              <span className="min-w-0 flex-1 truncate text-label text-stone-500">{m.line} · {m.weight} · {m.age}</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }
@@ -417,14 +426,14 @@ export function CenterContent({ ctx, layout = 'desktop' }) {
     return (
       <>
         <ResultsHeader eyebrow="Step 3 · Recommended pairings" title="Ready when you are" sub={`${female.name} passed every readiness check. Review the goals on the left, then find pairings.`} />
-        <FeedbackState type="NoResults" title="Pairings will appear here" body={`Describe your goals, then select Find pairings. The advisor will screen 6 males against ${female.name}.`} />
+        <FeedbackState type="NoResults" title="Pairings will appear here" body={`Describe your goals, then select Find pairings. The advisor will screen 4 males against ${female.name}.`} />
       </>
     );
   }
   if (s.run === 'loading') {
     return (
       <>
-        {!mobile && <ResultsHeader eyebrow="Step 3 · Recommended pairings" title={`Finding pairings for ${female.name}…`} sub="Screening 6 males against your goals" />}
+        {!mobile && <ResultsHeader eyebrow="Step 3 · Recommended pairings" title={`Finding pairings for ${female.name}…`} sub="Screening 4 males against your goals" />}
         <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading recommendations">
           {[0, 1, 2].map((i) => <RecommendationCardSkeleton key={i} layout={mobile ? 'mobile' : 'desktop'} />)}
         </div>

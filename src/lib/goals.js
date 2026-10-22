@@ -8,6 +8,14 @@ export const CONSTRAINT_OPTIONS = [
   { id: 'maxKinship', label: 'Max kinship 6.25%', kind: 'Objective' },
 ];
 
+// Sellable mix: which price tiers to aim for.
+export const SELLABLE_MIX = [
+  { id: 'high_end', label: 'High-end (tip)' },
+  { id: 'balanced', label: 'Balanced' },
+  { id: 'retail_b', label: 'Retail B' },
+  { id: 'avoid_sit', label: 'Avoid sit-or-wholesale' },
+];
+
 export const GOAL_TEXT = "I'd like visual Clowns from Juniper this season — ideally Pastel Clowns. Avoid Spider, and I'd prefer a proven male.";
 
 export const DEFAULT_GOALS = {
@@ -16,6 +24,7 @@ export const DEFAULT_GOALS = {
   traits: ['Clown', 'Pastel Clown'],
   constraints: ['avoidSpider', 'provenOnly'],
   preferredMaleId: null,
+  sellableMix: 'balanced',
 };
 
 // Starting goals per female (Juniper's match the Figma exactly).
@@ -37,6 +46,7 @@ export function goalsFor(femaleId, female) {
       ...DEFAULT_GOALS,
       text: `I'd like the best pairing for ${female.name} this season. Avoid Spider, and I'd prefer a proven male.`,
       traits: [],
+      seasonTargets: [],
       constraints: [...DEFAULT_GOALS.constraints],
     };
   }

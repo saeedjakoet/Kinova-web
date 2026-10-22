@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { askAdvisor, getCollection, getFemale, getMaleCandidates } from '@/lib/api';
-import { mergeResults, toResults } from '@/lib/candidates';
+import { SHORTLIST, mergeResults, toResults } from '@/lib/candidates';
 import { femaleProfile } from '@/lib/cltch';
 import { DEFAULT_GOALS, goalsFor } from '@/lib/goals';
 
 // One reducer drives every screen in the Figma flow:
 // D01 empty · D02 selector · D03 goals · D04 loading · D05 results · D06 detail · D07 compare · D08 refine · D09 error/blocked
-const SHORTLIST = 10;
+
+/** Catalogue option ids of the selected season targets (e.g. "<morphId>:visual"). */
+const targetIds = (goals) => (goals.seasonTargets || []).map((t) => t.id);
 
 const initial = {
   female: null, // the selected female (females themselves load page by page in the selector)
@@ -186,7 +188,7 @@ export default function useAdvisor() {
     timer.current = setInterval(() => dispatch({ type: 'runStep' }), 420);
     try {
       if (simulateFailure) throw Object.assign(new Error("Cltch didn't respond in time."), { code: 'GENE_ENGINE_TIMEOUT' });
-      const data = await getMaleCandidates(s.femaleId, { limit: SHORTLIST });
+      const data = await getMaleCandidates(s.femaleId, { limit: SHORTLIST, targets: targetIds(s.goals) });
       dispatch({ type: 'runDone', results: toResults(data, female) });
       const pv = pendingView.current;
       pendingView.current = null;
@@ -200,19 +202,19 @@ export default function useAdvisor() {
     } finally {
       clearInterval(timer.current);
     }
-  }, [s.femaleId, simulateFailure, female]);
+  }, [s.femaleId, s.goals, simulateFailure, female]);
 
   const loadMore = useCallback(async () => {
     const paging = s.results && s.results.paging;
     if (!s.femaleId || s.loadingMore || !paging || !paging.hasMore) return;
     dispatch({ type: 'moreStart' });
     try {
-      const data = await getMaleCandidates(s.femaleId, { offset: paging.nextOffset, limit: SHORTLIST });
+      const data = await getMaleCandidates(s.femaleId, { offset: paging.nextOffset, limit: SHORTLIST, targets: targetIds(s.goals) });
       dispatch({ type: 'moreDone', results: toResults(data, female) });
     } catch (e) {
       dispatch({ type: 'moreError', message: e.message });
     }
-  }, [s.femaleId, s.loadingMore, s.results, female]);
+  }, [s.femaleId, s.loadingMore, s.results, s.goals, female]);
 
   // Warm the API caches (female, male list, pedigree) as soon as a female is picked,
   // so Find pairings only pays for the shortlist checks.

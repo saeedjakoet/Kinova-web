@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import clsx from 'clsx';
 import useBreakpoint from '@/lib/useBreakpoint';
 import useAdvisor from './useAdvisor';
+import { SELLABLE_MIX } from '@/lib/goals';
 import { Header, SubHeader, MobileStepper } from '../layout/Chrome';
 import GoalsForm from '../layout/GoalsForm';
 import FemaleSelectorModal, { useFemalePages, FilterChips, CollectionStatus, PaginationControls } from '../snake/FemaleSelectorModal';
@@ -15,6 +16,14 @@ import { Dialog, SheetHandle } from '../ui/Overlay';
 import { SearchInput } from '../ui/Fields';
 import { AdvisorMark } from '../advisor/Advisor';
 import { LeftRail, CenterContent, AdvisorPanel, advisorTeaser } from './Sections';
+
+/** Short label for Sellable mix (only when set away from the default). */
+function goalChips(goals) {
+  const out = [];
+  const mix = SELLABLE_MIX.find((o) => o.id === goals.sellableMix);
+  if (mix && mix.id !== 'balanced') out.push(mix.label);
+  return out;
+}
 
 function stepOf(s, female) {
   if (!female || !female.ready) return 1;
@@ -63,7 +72,7 @@ function DesktopLayout({ ctx }) {
 // ---------------------------------------------------------------------------
 function SummaryBar({ ctx }) {
   const { s, female, actions } = ctx;
-  const avoid = s.goals.constraints.includes('avoidSpider');
+  const targets = s.goals.seasonTargets || [];
   return (
     <div className="flex items-center gap-3.5 border-b border-line bg-card px-5 py-3">
       <SnakeAvatar morph={female.morph} size={40} />
@@ -73,9 +82,9 @@ function SummaryBar({ ctx }) {
       </div>
       <span className="h-8 w-px bg-line" aria-hidden="true" />
       <ul className="flex min-w-0 flex-1 flex-wrap gap-1.5" aria-label="Current goals">
-        <li><Chip type="objective" selected>{s.goals.objective}</Chip></li>
-        {s.goals.traits.slice(-1).map((t) => <li key={t}><Chip type="trait" selected>{t}</Chip></li>)}
-        {avoid && <li><Chip type="avoid" selected>Avoid Spider</Chip></li>}
+        {targets.length === 0 && <li><Chip type="neutral">No season targets</Chip></li>}
+        {targets.map((t) => <li key={t.id}><Chip type="trait" selected>{t.name}</Chip></li>)}
+        {goalChips(s.goals).map((c) => <li key={c}><Chip type="neutral">{c}</Chip></li>)}
       </ul>
       <Button variant="secondary" size="sm" iconLeft="sliders" onClick={() => actions.setGoalsSheet(true)}>Edit goals</Button>
     </div>
@@ -225,9 +234,9 @@ function MobileLayout({ ctx }) {
               <>
                 <MobileStepper step={3} title="Review pairings" />
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Chip type="objective" selected>{s.goals.objective}</Chip>
-                  {s.goals.traits.slice(-1).map((tr) => <Chip key={tr} type="trait" selected>{tr}</Chip>)}
-                  {s.goals.constraints.includes('avoidSpider') && <Chip type="avoid" selected>Avoid Spider</Chip>}
+                  {(s.goals.seasonTargets || []).length === 0 && <Chip type="neutral">No season targets</Chip>}
+                  {(s.goals.seasonTargets || []).map((t) => <Chip key={t.id} type="trait" selected>{t.name}</Chip>)}
+                  {goalChips(s.goals).map((c) => <Chip key={c} type="neutral">{c}</Chip>)}
                   <Button variant="ghost" size="sm" iconLeft="sliders" onClick={() => actions.setMobileScreen('goals')}>Edit</Button>
                 </div>
                 {s.run === 'done' && results && (
