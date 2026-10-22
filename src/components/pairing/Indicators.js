@@ -60,14 +60,15 @@ const ODDS = {
 };
 
 /** Figma: OddsRow — Tone (Target|Standard|Muted). Chance per egg with an 8px bar. */
-export function OddsRow({ label, pct, tone = 'Standard', note }) {
+/** `labelNode` (optional) replaces the visible label, e.g. gene chips; `label` is then read by screen readers. */
+export function OddsRow({ label, labelNode, pct, tone = 'Standard', note }) {
   const t = ODDS[tone];
   return (
     <li className="flex flex-col gap-1.5" data-testid="odds-row">
       <div className="flex items-center gap-2">
         {tone === 'Target' && <Icon name="target" size={14} className={t.icon} />}
         <span className={clsx('flex-1 text-body-sm-md', t.label)} data-testid="odds-label">
-          {label}
+          {labelNode ? <><span className="sr-only">{label}</span><span aria-hidden="true">{labelNode}</span></> : label}
           {tone === 'Target' && <span className="sr-only"> (matches your goal)</span>}
         </span>
         <span className={clsx('text-body-sm-md tabular-nums', t.pct)} data-testid="odds-pct">{pct}%</span>

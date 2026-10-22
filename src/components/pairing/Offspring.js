@@ -8,6 +8,41 @@ import { getOffspring } from '@/lib/api';
 
 const TONE = { visual: 'Standard', super: 'Target', het: 'Muted' };
 
+/**
+ * Typed genes of a combination. Uses the API's `genes`; for older responses falls back to splitting `name`
+ * on " · het ". Het names split safely on ", " but visual names can contain spaces ("Orange Dream"),
+ * so the visual part is kept as one name in that fallback.
+ */
+function comboGenes(c) {
+  if (Array.isArray(c.genes)) return c.genes;
+  const [vis, het] = c.name.split(' · het ');
+  return [
+    ...(vis && vis !== 'Normal' ? [{ name: vis, kind: vis.startsWith('Super ') ? 'super' : 'visual' }] : []),
+    ...(het ? het.split(', ').map((h) => ({ name: h, kind: 'het' })) : []),
+  ];
+}
+
+const geneText = (g) => (g.kind === 'het' ? `het ${g.name}` : g.name);
+
+/** Screen-reader sentence, e.g. "Pastel, Mojave visual; het Clown". */
+function comboSpoken(genes) {
+  const vis = genes.filter((g) => g.kind !== 'het').map((g) => g.name);
+  const het = genes.filter((g) => g.kind === 'het').map(geneText);
+  return [vis.length ? `${vis.join(', ')} visual` : 'Normal (no visual genes)', het.length ? het.join(', ') : ''].filter(Boolean).join('; ');
+}
+
+/** Visual genes as the main text; each het gets its own muted "het" prefix, so "Zebra" is never ambiguous. */
+function ComboLabel({ genes }) {
+  const vis = genes.filter((g) => g.kind !== 'het').map((g) => g.name);
+  const het = genes.filter((g) => g.kind === 'het').map(geneText);
+  return (
+    <>
+      {vis.length ? vis.join(' ') : 'Normal'}
+      {het.length > 0 && <span className="font-normal text-stone-500"> · {het.join(' · ')}</span>}
+    </>
+  );
+}
+
 /** Possible offspring for a female × male pair, from Cltch's Gene Engine. */
 export default function OffspringPanel({ female, male }) {
   const [state, setState] = useState({ loading: true, data: null, error: null });
@@ -63,9 +98,22 @@ export default function OffspringPanel({ female, male }) {
         <>
           {view === 0 ? (
             <>
-              <OddsList rows={data.combinations.map((c) => ({ label: c.name, pct: c.percent, tone: c.name.startsWith('Normal') ? 'Muted' : 'Standard', note: c.chanceLabel }))} />
+              <OddsList rows={data.combinations.map((c) => {
+                const genes = comboGenes(c);
+                return {
+                  label: comboSpoken(genes),
+                  labelNode: <ComboLabel genes={genes} />,
+                  pct: c.percent,
+                  tone: c.name.startsWith('Normal') ? 'Muted' : 'Standard',
+                  note: c.chanceLabel,
+                };
+              })} />
               {data.combinationsTotal > data.combinations.length && (
-                <p className="text-label text-stone-500">Showing the {data.combinations.length} most likely of {data.combinationsTotal} combinations.</p>
+                <p className="text-label text-stone-500">
+                  {data.combinations.every((c) => c.probability === data.combinations[0].probability)
+                    ? `All ${data.combinationsTotal} combinations are equally likely (${data.combinations[0].chanceLabel} each), because every gene here is a 50/50. Showing ${data.combinations.length} of them.`
+                    : `Showing the ${data.combinations.length} most likely of ${data.combinationsTotal} combinations.`}
+                </p>
               )}
             </>
           ) : (
