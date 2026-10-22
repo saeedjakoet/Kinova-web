@@ -164,7 +164,7 @@ function MobileFemaleList({ ctx }) {
       {ready && (
         <>
           <SearchInput value={p.q} onChange={p.setQ} label="Search females" />
-          <FilterChips filter={p.filter} setFilter={p.setFilter} counts={p.counts} labels={['All', 'Ready', 'Not ready']} />
+          <FilterChips filter={p.filter} setFilter={p.setFilter} counts={p.counts} labels={['Ready', 'Not ready']} />
         </>
       )}
       {ready && p.total > 0 ? (

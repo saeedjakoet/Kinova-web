@@ -17,6 +17,16 @@ function NameRow({ snake, dim }) {
   );
 }
 
+/** Age / Weight / Maturity, one per line. Falls back to "age · weight" for snakes without `details` (mock data). */
+function SnakeDetails({ snake, className }) {
+  const lines = snake.details || [`${snake.age} · ${snake.weight}`];
+  return (
+    <span className="flex flex-col gap-0.5">
+      {lines.map((line) => <span key={line} className={className}>{line}</span>)}
+    </span>
+  );
+}
+
 function SelectedBadge({ className }) {
   return (
     <span className={clsx('flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-forest-700 text-card', className)}>
@@ -46,7 +56,7 @@ export function SnakeCard({ snake, layout = 'detailed', selected = false, onSele
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <NameRow snake={snake} dim={inel} />
           <span className="text-body-sm text-charcoal-600">{snake.line}</span>
-          <span className="text-label text-stone-500">{snake.age} · {snake.weight}</span>
+          <SnakeDetails snake={snake} className="text-label text-stone-500" />
           {(inel || (snake.missingData && snake.missingData.length > 0)) && <StatusPill tone={snake.status[0]} className="mt-1 self-start">{snake.status[1]}</StatusPill>}
         </span>
         {selected ? <SelectedBadge /> : <Icon name="chevron-right" size={18} className="text-stone-400" />}
@@ -65,7 +75,7 @@ export function SnakeCard({ snake, layout = 'detailed', selected = false, onSele
         </span>
       </span>
       <MorphTags tags={snake.tags} />
-      <span className="text-body-sm text-charcoal-600">{snake.age} · {snake.weight}</span>
+      <SnakeDetails snake={snake} className="text-body-sm text-charcoal-600" />
       <StatusPill tone={snake.status[0]}>{snake.status[1]}</StatusPill>
       {selected && <SelectedBadge className="absolute right-4 top-4" />}
     </button>

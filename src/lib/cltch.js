@@ -2,7 +2,7 @@
 // (same fields as the sample females in mock-data.js).
 
 const PALETTES = ['Normal', 'Pastel', 'Clown', 'Mojave', 'Enchi', 'Yellowbelly', 'Lesser', 'Spider'];
-const BLOCKING = new Set(['underweight', 'too_young', 'status_not_eligible']);
+const BLOCKING = new Set(['underweight', 'too_young', 'maturity_not_eligible', 'status_not_eligible']);
 
 // Stable "random" pick so each snake keeps the same icon between visits.
 function hash(str) {
@@ -30,17 +30,12 @@ function grams(n) {
   return `${Math.round(n).toLocaleString('en-US')} g`;
 }
 
-function yearsLabel(months) {
-  return months % 12 === 0 ? `${months / 12} yrs` : `${months} months`;
-}
-
 /**
  * @param {Object} row     one item of `data` from /api/cltch/females
- * @param {{femaleMinBreedingWeightGrams?: number, femaleMinBreedingAgeMonths?: number}} [policy]
+ * @param {{femaleMinBreedingWeightGrams?: number}} [policy]
  */
 export function adaptFemale(row, policy = {}) {
   const minW = policy.femaleMinBreedingWeightGrams || 500;
-  const minAge = policy.femaleMinBreedingAgeMonths || 12;
   const reasons = Array.isArray(row.readinessReasons) ? row.readinessReasons : [];
   const codes = new Set(reasons.map((r) => r.code));
   const morphNames = (row.morphNames || []).filter((n) => typeof n === 'string' && n.trim());
@@ -49,13 +44,17 @@ export function adaptFemale(row, policy = {}) {
   const name = (row.name || row.title || 'Unnamed female').trim();
   const cltchId = row.title && row.title !== row.name ? row.title : `CL-${String(row.id).slice(0, 6).toUpperCase()}`;
   const ageLabel = row.ageLabel || null;
+  const maturityLabel = row.maturityLabel || null;
+  const weightLabel = hasWeight ? grams(weightNum) : 'Weight unknown';
+  // A 0-month age is a placeholder birth date, not information: leave it off the card.
+  const showAge = row.ageMonths !== 0;
 
   const readiness = [
-    codes.has('missing_age')
-      ? ['warn', 'Age', 'Unknown · birth date not recorded']
-      : codes.has('too_young')
-        ? ['fail', 'Age', `${ageLabel} · min ${yearsLabel(minAge)}`]
-        : ['ok', 'Age', `${ageLabel} · mature`],
+    codes.has('missing_maturity')
+      ? ['warn', 'Maturity', 'Unknown · not recorded']
+      : codes.has('maturity_not_eligible')
+        ? ['fail', 'Maturity', `${maturityLabel || 'Unknown'} · must be Subadult or Adult`]
+        : ['ok', 'Maturity', maturityLabel || 'Unknown'],
     codes.has('missing_weight')
       ? ['warn', 'Weight', 'Unknown · not recorded']
       : codes.has('underweight')
@@ -76,10 +75,10 @@ export function adaptFemale(row, policy = {}) {
   if (row.readyToBreed) status = ['Success', 'Ready to breed'];
   else if (codes.has('status_not_eligible')) status = ['Risk', `${row.statusLabel || 'Status'} · not eligible`];
   else if (codes.has('underweight')) status = ['Caution', `Underweight · min ${grams(minW)}`];
-  else if (codes.has('too_young')) status = ['Caution', 'Too young to breed'];
-  else if (codes.has('missing_weight') && codes.has('missing_age')) status = ['Neutral', 'Weight & age unknown'];
+  else if (codes.has('maturity_not_eligible')) status = ['Caution', `${maturityLabel || 'Not mature'} · too young to breed`];
+  else if (codes.has('missing_weight') && codes.has('missing_maturity')) status = ['Neutral', 'Weight & maturity unknown'];
   else if (codes.has('missing_weight')) status = ['Neutral', 'Weight unknown'];
-  else if (codes.has('missing_age')) status = ['Neutral', 'Age unknown'];
+  else if (codes.has('missing_maturity')) status = ['Neutral', 'Maturity unknown'];
   else status = ['Neutral', 'Status unknown'];
 
   const hetName = morphNames.find((n) => /het\s+clown/i.test(n) && /%|possible/i.test(n));
@@ -95,7 +94,13 @@ export function adaptFemale(row, policy = {}) {
     tags: morphNames.map(tagFor),
     morphNames,
     age: ageLabel || 'Age unknown',
-    weight: hasWeight ? grams(weightNum) : 'Weight unknown',
+    weight: weightLabel,
+    // Card detail lines, one per row.
+    details: [
+      showAge && `Age: ${ageLabel || 'Unknown'}`,
+      `Weight: ${hasWeight ? grams(weightNum) : 'Unknown'}`,
+      `Maturity: ${maturityLabel || 'Unknown'}`,
+    ].filter(Boolean),
     status,
     ready: selectable,
     selectable,

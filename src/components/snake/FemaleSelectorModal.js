@@ -11,8 +11,8 @@ import { Callout, Skeleton } from '../ui/Misc';
 import { SnakeCard } from './SnakeCards';
 import { FEMALES_PAGE_SIZE, getFemalesPage, prefetchFemalesPage } from '@/lib/api';
 
-const FILTERS = ['All females', 'Ready to breed', 'Not ready'];
-const READY_PARAM = ['all', 'ready', 'not_ready'];
+const FILTERS = ['Ready to breed', 'Not ready']; // opens on Ready to breed
+const READY_PARAM = ['ready', 'not_ready'];
 const SEARCH_DEBOUNCE_MS = 300;
 
 /**
@@ -65,7 +65,7 @@ export function useFemalePages() {
     return () => { alive = false; };
   }, [page, query, filter, attempt]);
 
-  const counts = result ? [result.counts.all, result.counts.ready, result.counts.notReady] : [0, 0, 0];
+  const counts = result ? [result.counts.ready, result.counts.notReady] : [0, 0];
   return {
     q,
     setQ: setQState,

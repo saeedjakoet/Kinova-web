@@ -34,7 +34,7 @@ export function getFemales() {
 // include_details=false: cards and filters both come from Cltch list rows, so they always agree.
 const FEMALES_LIST_PARAMS = {
   take: '200',
-  max_pages: '5',
+  max_pages: '25', // 200 × 25 = up to 5,000 females; paging stops at the first short page
   include_details: 'false',
   include_morph_records: 'true',
 };
